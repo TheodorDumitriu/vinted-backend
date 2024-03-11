@@ -18,7 +18,7 @@ router.post(
       const user = req.user;
       const { title, description, price, brand, size, condition, color, city } =
         req.body;
-      console.log(title.length);
+      // console.log(title.length);
       if (title.length >= 50) {
         return res
           .status(401)
@@ -36,33 +36,67 @@ router.post(
           .status(401)
           .json({ message: "Price needs to be 100000€ max" });
       }
-      // Store img to cloudinary (stored in DB return object from cloudinary)
-      const convertedFile = convertToBase64(req.files.picture);
-      const imgUploadResult = await cloudinary.uploader.upload(convertedFile, {
-        folder: "vinted/offers",
+
+      if (req.files === null || req.files.picture.length === 0) {
+        return res.json("No file uploaded!");
+      }
+
+      // Upload array of images
+      const imgsToUpload = req.files.picture;
+
+      const imgsPromises = imgsToUpload.map((img) => {
+        return cloudinary.uploader.upload(convertToBase64(img), {
+          folder: "vinted/offers",
+        });
       });
-      // const imgUploadResult = {
-      //   asset_id: "7ebab5b2991355a332ac6b70cb6b53bd",
-      //   public_id: "vinted/offers/gyfkcbmzkjkba7inticf",
-      //   version: 1709738969,
-      //   version_id: "8ea763e2cc328d3ba1507c343277e1a4",
-      //   signature: "d99fc73fd1732e23264e7d6eabe72e475a85d512",
-      //   width: 265,
-      //   height: 355,
-      //   format: "png",
-      //   resource_type: "image",
-      //   created_at: "2024-03-06T15:29:29Z",
-      //   tags: [],
-      //   bytes: 111734,
-      //   type: "upload",
-      //   etag: "605d87ae5178ca5b1d96cdb8febc9f9b",
-      //   placeholder: false,
-      //   url: "http://res.cloudinary.com/dtmktc6lq/image/upload/v1709738969/vinted/offers/gyfkcbmzkjkba7inticf.png",
-      //   secure_url:
-      //     "https://res.cloudinary.com/dtmktc6lq/image/upload/v1709738969/vinted/offers/gyfkcbmzkjkba7inticf.png",
-      //   folder: "vinted/offers",
-      //   api_key: "491428832986938",
-      // };
+
+      const resImgsToUpload = await Promise.all(imgsPromises);
+      // const resImgsToUpload = [
+      //   {
+      //     asset_id: "e32d7f1b4d705c9738b36a414fd9f8eb",
+      //     public_id: "vinted/offers/tu9ow74urbwsjc1oiswf",
+      //     version: 1710174472,
+      //     version_id: "7b177ddbc74498754110172844999c32",
+      //     signature: "f55c22df3436c8cc08b69be8acbf8d3df61f0925",
+      //     width: 500,
+      //     height: 1120,
+      //     format: "jpg",
+      //     resource_type: "image",
+      //     created_at: "2024-03-11T16:27:52Z",
+      //     tags: [],
+      //     bytes: 121006,
+      //     type: "upload",
+      //     etag: "c9db28871640574d8b041171e9056f61",
+      //     placeholder: false,
+      //     url: "http://res.cloudinary.com/dtmktc6lq/image/upload/v1710174472/vinted/offers/tu9ow74urbwsjc1oiswf.jpg",
+      //     secure_url:
+      //       "https://res.cloudinary.com/dtmktc6lq/image/upload/v1710174472/vinted/offers/tu9ow74urbwsjc1oiswf.jpg",
+      //     folder: "vinted/offers",
+      //     api_key: "445343842699418",
+      //   },
+      //   {
+      //     asset_id: "e69c351b431ed062be9ba0238e6bcd2e",
+      //     public_id: "vinted/offers/mt9rbketa02gh07kma2l",
+      //     version: 1710174472,
+      //     version_id: "7b177ddbc74498754110172844999c32",
+      //     signature: "b2ea85b18a6be19f7f00861888825425fa9fc11c",
+      //     width: 736,
+      //     height: 1104,
+      //     format: "jpg",
+      //     resource_type: "image",
+      //     created_at: "2024-03-11T16:27:52Z",
+      //     tags: [],
+      //     bytes: 141032,
+      //     type: "upload",
+      //     etag: "8e06d81e894706de5a06f4a20f36ad8a",
+      //     placeholder: false,
+      //     url: "http://res.cloudinary.com/dtmktc6lq/image/upload/v1710174472/vinted/offers/mt9rbketa02gh07kma2l.jpg",
+      //     secure_url:
+      //       "https://res.cloudinary.com/dtmktc6lq/image/upload/v1710174472/vinted/offers/mt9rbketa02gh07kma2l.jpg",
+      //     folder: "vinted/offers",
+      //     api_key: "445343842699418",
+      //   },
+      // ];
 
       const newOffer = new Offer({
         product_name: title,
@@ -75,12 +109,17 @@ router.post(
           { COULEUR: color },
           { EMPLACEMENT: city },
         ],
-        product_image: imgUploadResult,
+        product_image: resImgsToUpload,
         owner: user._id,
       });
 
       await newOffer.save();
-      console.log(newOffer);
+      // console.log(newOffer);
+
+      const resImgsUrls = [];
+      for (let i = 0; i < resImgsToUpload.length; i++) {
+        resImgsUrls.push(resImgsToUpload[i].secure_url);
+      }
 
       const resObject = {
         _id: newOffer._id,
@@ -94,11 +133,8 @@ router.post(
           },
           _id: user._id,
         },
-        product_image: {
-          secure_url: imgUploadResult.secure_url,
-        },
+        product_image: resImgsUrls,
       };
-      // console.log(resObject);
 
       res.status(201).json(resObject);
     } catch (error) {
